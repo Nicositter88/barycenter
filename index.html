@@ -1,155 +1,160 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Barycenter Calculator with Filtering</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <style>
-        #map {
-            height: 500px;
-            width: 100%;
-        }
-        #controls {
-            margin-bottom: 10px;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Barycenter Calculator with Filtering</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    #map {
+      height: 500px;
+      width: 100%;
+    }
+
+    #controls {
+      margin-bottom: 10px;
+    }
+  </style>
 </head>
+
 <body>
-    <h1>Barycenter of Addresses with Filtering</h1>
-    <div id="controls">
-        <label>
-            <input type="radio" name="filter" value="all" checked> Show All
-        </label>
-        <label>
-            <input type="radio" name="filter" value="paris"> Only Paris
-        </label>
-        <label>
-            <input type="radio" name="filter" value="non-paris"> Elsewhere
-        </label>
-    </div>
-    <div id="map"></div>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script>
-        const addresses = [
-            { name: "Nic Sit", address: "87 avenue Ledru Rollin, 75012, Paris, France" },
-            { name: "Juvin - chez Mme Wang", address: "Sentier, Paris, France" },
-            { name: "Mispo", address: "Marseille, France" },
-            { name: "Fil", address: "Amsterdam, Netherlands" },
-            { name: "Coit", address: "Rennes, France" }
-        ];
+  <h1>Barycenter of Addresses with Filtering</h1>
+  <div id="controls">
+    <label>
+      <input type="radio" name="filter" value="all" checked> Show All
+    </label>
+    <label>
+      <input type="radio" name="filter" value="paris"> Only Paris
+    </label>
+    <label>
+      <input type="radio" name="filter" value="non-paris"> Elsewhere
+    </label>
+  </div>
+  <div id="map"></div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const addresses = [
+      { name: "Nic Sit", address: "87 avenue Ledru Rollin, 75012, Paris, France" },
+      { name: "Juvin - chez Mme Wang", address: "Sentier, Paris, France" },
+      { name: "Der Maille", address: "34 rue Jouffroy d’Abbans, 75017,Paris, France" },
+      { name: "Mispo", address: "Marseille, France" },
+      { name: "Fil", address: "Amsterdam, Netherlands" },
+      { name: "Coit", address: "Rennes, France" }
+    ];
 
-        let geocodedLocations = [];
-        let markers = [];
-        let barycenterMarker = null;
-        let lines = null;
+    let geocodedLocations = [];
+    let markers = [];
+    let barycenterMarker = null;
+    let lines = null;
 
-        const map = L.map('map').setView([0, 0], 2);
+    const map = L.map('map').setView([0, 0], 2);
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        }).addTo(map);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
 
-        async function geocodeAddress(address) {
-            const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`);
-            const data = await response.json();
-            if (data.length > 0) {
-                return {
-                    lat: parseFloat(data[0].lat),
-                    lng: parseFloat(data[0].lon)
-                };
-            } else {
-                throw new Error(`Could not geocode address: ${address}`);
-            }
+    async function geocodeAddress(address) {
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`);
+      const data = await response.json();
+      if (data.length > 0) {
+        return {
+          lat: parseFloat(data[0].lat),
+          lng: parseFloat(data[0].lon)
+        };
+      } else {
+        throw new Error(`Could not geocode address: ${address}`);
+      }
+    }
+
+    function calculateBarycenter(locations) {
+      if (locations.length === 0) return null;
+
+      let totalLat = 0, totalLng = 0;
+      locations.forEach(loc => {
+        totalLat += loc.lat;
+        totalLng += loc.lng;
+      });
+
+      return {
+        lat: totalLat / locations.length,
+        lng: totalLng / locations.length
+      };
+    }
+
+    function addMarkersAndLines(filteredLocations) {
+      markers.forEach(marker => map.removeLayer(marker));
+      markers = [];
+      if (lines) {
+        map.removeLayer(lines);
+        lines = null;
+      }
+      if (barycenterMarker) {
+        map.removeLayer(barycenterMarker);
+        barycenterMarker = null;
+      }
+
+      filteredLocations.forEach(loc => {
+        const marker = L.marker([loc.lat, loc.lng]).addTo(map)
+          .bindPopup(`<strong>${loc.name}</strong><br>${loc.address}<br>Lat: ${loc.lat.toFixed(4)}, Lng: ${loc.lng.toFixed(4)}`);
+        markers.push(marker);
+      });
+
+      if (filteredLocations.length > 0) {
+        const latLngs = filteredLocations.map(loc => [loc.lat, loc.lng]);
+        latLngs.push(latLngs[0]); // Close the loop by adding the first point to the end of the array
+        lines = L.polyline(latLngs, { color: 'blue' }).addTo(map);
+
+        const barycenter = calculateBarycenter(filteredLocations);
+        if (barycenter) {
+          barycenterMarker = L.marker([barycenter.lat, barycenter.lng], {
+            icon: L.divIcon({
+              className: 'barycenter-icon',
+              html: '<div style="background: red; color: white; padding: 5px; border-radius: 50%;">B</div>',
+              iconSize: [20, 20]
+            })
+          }).addTo(map)
+            .bindPopup(`<strong>LE Barycentre</strong><br>Lat: ${barycenter.lat.toFixed(4)}, Lng: ${barycenter.lng.toFixed(4)}`)
+            .openPopup();
         }
 
-        function calculateBarycenter(locations) {
-            if (locations.length === 0) return null;
+        const group = L.featureGroup([...markers, barycenterMarker]);
+        map.fitBounds(group.getBounds());
+      }
+    }
 
-            let totalLat = 0, totalLng = 0;
-            locations.forEach(loc => {
-                totalLat += loc.lat;
-                totalLng += loc.lng;
-            });
+    function filterLocations(filter) {
+      if (filter === 'paris') {
+        return geocodedLocations.filter(loc => loc.address.toLowerCase().includes('paris'));
+      } else if (filter === 'non-paris') {
+        return geocodedLocations.filter(loc => !loc.address.toLowerCase().includes('paris'));
+      } else {
+        return geocodedLocations;
+      }
+    }
 
-            return {
-                lat: totalLat / locations.length,
-                lng: totalLng / locations.length
-            };
+    async function processAddresses() {
+      for (const addr of addresses) {
+        try {
+          const coords = await geocodeAddress(addr.address);
+          geocodedLocations.push({ name: addr.name, address: addr.address, lat: coords.lat, lng: coords.lng });
+        } catch (error) {
+          console.error(error.message);
         }
+      }
 
-        function addMarkersAndLines(filteredLocations) {
-            markers.forEach(marker => map.removeLayer(marker));
-            markers = [];
-            if (lines) {
-                map.removeLayer(lines);
-                lines = null;
-            }
-            if (barycenterMarker) {
-                map.removeLayer(barycenterMarker);
-                barycenterMarker = null;
-            }
+      addMarkersAndLines(geocodedLocations);
+    }
 
-            filteredLocations.forEach(loc => {
-                const marker = L.marker([loc.lat, loc.lng]).addTo(map)
-                    .bindPopup(`<strong>${loc.name}</strong><br>${loc.address}<br>Lat: ${loc.lat.toFixed(4)}, Lng: ${loc.lng.toFixed(4)}`);
-                markers.push(marker);
-            });
+    document.querySelectorAll('input[name="filter"]').forEach(input => {
+      input.addEventListener('change', (event) => {
+        const filteredLocations = filterLocations(event.target.value);
+        addMarkersAndLines(filteredLocations);
+      });
+    });
 
-            if (filteredLocations.length > 0) {
-                const latLngs = filteredLocations.map(loc => [loc.lat, loc.lng]);
-                latLngs.push(latLngs[0]); // Close the loop by adding the first point to the end of the array
-                lines = L.polyline(latLngs, { color: 'blue' }).addTo(map);
-
-                const barycenter = calculateBarycenter(filteredLocations);
-                if (barycenter) {
-                    barycenterMarker = L.marker([barycenter.lat, barycenter.lng], {
-                        icon: L.divIcon({
-                            className: 'barycenter-icon',
-                            html: '<div style="background: red; color: white; padding: 5px; border-radius: 50%;">B</div>',
-                            iconSize: [20, 20]
-                        })
-                    }).addTo(map)
-                        .bindPopup(`<strong>Barycenter</strong><br>Lat: ${barycenter.lat.toFixed(4)}, Lng: ${barycenter.lng.toFixed(4)}`)
-                        .openPopup();
-                }
-
-                const group = L.featureGroup([...markers, barycenterMarker]);
-                map.fitBounds(group.getBounds());
-            }
-        }
-
-        function filterLocations(filter) {
-            if (filter === 'paris') {
-                return geocodedLocations.filter(loc => loc.address.toLowerCase().includes('paris'));
-            } else if (filter === 'non-paris') {
-                return geocodedLocations.filter(loc => !loc.address.toLowerCase().includes('paris'));
-            } else {
-                return geocodedLocations;
-            }
-        }
-
-        async function processAddresses() {
-            for (const addr of addresses) {
-                try {
-                    const coords = await geocodeAddress(addr.address);
-                    geocodedLocations.push({ name: addr.name, address: addr.address, lat: coords.lat, lng: coords.lng });
-                } catch (error) {
-                    console.error(error.message);
-                }
-            }
-
-            addMarkersAndLines(geocodedLocations);
-        }
-
-        document.querySelectorAll('input[name="filter"]').forEach(input => {
-            input.addEventListener('change', (event) => {
-                const filteredLocations = filterLocations(event.target.value);
-                addMarkersAndLines(filteredLocations);
-            });
-        });
-
-        processAddresses();
-    </script>
+    processAddresses();
+  </script>
 </body>
+
 </html>
