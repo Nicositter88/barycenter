@@ -38,7 +38,7 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
     const addresses = [
-      { name: "Nic Sit", address: "87 avenue Ledru Rollin, 75012, Paris, France" },
+      { name: "Guezmer", address: "87 avenue Ledru Rollin, 75012, Paris, France" },
       { name: "Juvin - chez Mme Wang", address: "107 rue d’Aboukir, 75002, Paris, France" },
       { name: "Der Maille", address: "34 rue Jouffroy d’Abbans, 75017,Paris, France" },
       { name: "Barritonz", address: "58 av republique, 75011, Paris, France" },
@@ -114,4 +114,61 @@
 
       if (filteredLocations.length > 0) {
         const latLngs = filteredLocations.map(loc => [loc.lat, loc.lng]);
-        latLngs.push(latLngs[0]); // Close the loop by adding the first point to the en
+        latLngs.push(latLngs[0]); // Close the loop by adding the first point to the end of the array
+        lines = L.polyline(latLngs, { color: 'blue' }).addTo(map);
+
+        const barycenter = calculateBarycenter(filteredLocations);
+        if (barycenter) {
+          barycenterMarker = L.marker([barycenter.lat, barycenter.lng], {
+            icon: L.divIcon({
+              className: 'barycenter-icon',
+              html: '<div style="background: red; color: white; padding: 5px; border-radius: 50%;">B</div>',
+              iconSize: [20, 20]
+            })
+          }).addTo(map)
+            .bindPopup(`<strong>LE Barycentre</strong><br>Lat: ${barycenter.lat.toFixed(4)}, Lng: ${barycenter.lng.toFixed(4)}`)
+            .openPopup();
+        }
+
+        const group = L.featureGroup([...markers, barycenterMarker]);
+        map.fitBounds(group.getBounds());
+      }
+    }
+
+    function filterLocations(filter) {
+      if (filter === 'paris') {
+        return geocodedLocations.filter(loc => loc.address.toLowerCase().includes('paris'));
+      } else if (filter === 'non-paris') {
+        return geocodedLocations.filter(loc => !loc.address.toLowerCase().includes('paris'));
+      } else if (filter === 'paris-and-charenton') {
+        return geocodedLocations.filter(loc => loc.address.toLowerCase().includes('paris') || loc.address.toLowerCase().includes('charenton'));
+      } else {
+        return geocodedLocations;
+      }
+    }
+
+    async function processAddresses() {
+      for (const addr of addresses) {
+        try {
+          const coords = await geocodeAddress(addr.address);
+          geocodedLocations.push({ name: addr.name, address: addr.address, lat: coords.lat, lng: coords.lng });
+        } catch (error) {
+          console.error(error.message);
+        }
+      }
+
+      addMarkersAndLines(geocodedLocations);
+    }
+
+    document.querySelectorAll('input[name="filter"]').forEach(input => {
+      input.addEventListener('change', (event) => {
+        const filteredLocations = filterLocations(event.target.value);
+        addMarkersAndLines(filteredLocations);
+      });
+    });
+
+    processAddresses();
+  </script>
+</body>
+
+</html>
