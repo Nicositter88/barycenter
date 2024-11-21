@@ -40,7 +40,7 @@
     const addresses = [
       { name: "Guezmer", address: "87 avenue Ledru Rollin, 75012, Paris, France" },
       { name: "chez Mme Wang", address: "107 rue d’Aboukir, 75002, Paris, France" },
-      { name: "Der Maille", address: "34 rue Jouffroy d’Abbans, 75017,Paris, France" },
+      { name: "Der Maille", address: "34 rue Jouffroy d’Abbans, 75017, Paris, France" },
       { name: "Barritonz", address: "58 av republique, 75011, Paris, France" },
       { name: "HUITRE", address: "6 rue Cadet, 75009, Paris, France" },
       { name: "Flutertre", address: "82 rue de charenton, 75012, Paris, France" },
@@ -49,7 +49,7 @@
       { name: "Benoit", address: "39 avenue Claude vellefaux, 75010, Paris, France" },
       { name: "Misa en GAV", address: "4 Rue Saint-Sauveur, 75002 Paris, France" },
       { name: "Tonch TVA+", address: "47 boulevard voltaire, 75011, Paris, France" },
-      { name: "GAPAR", address: " 55 Av. de la République, 75011, Paris, France" },
+      { name: "GAPAR", address: "55 Av. de la République, 75011, Paris, France" },
       { name: "Del Piro", address: "1 rue Veron, 75018, Paris, France" },
       { name: "Tiste pas parisienne", address: "8 rue Jean-Baptiste Marty, 94220 Charenton-le-Pont, France" },
       { name: "Larave du futur", address: "92 Rue Jeanne d'Arc, 59000, Lille, France" },
@@ -58,7 +58,7 @@
       { name: "Pep", address: "5 Imp. des Troignes, 69290, Craponne, France" },
       { name: "Rom de la pharma", address: "Marseille, France" },
       { name: "Engué", address: "Rambla de Catalunya, 119, Eixample, 08008 Barcelona, Espagne" },
-      { name: "Fil", address: "Diezestraat 13, 1078 JM Amsterdam, Pays-Bas" },
+      { name: "Fil", address: "Diezestraat 13, 1078 JM Amsterdam, Netherlands" },
       { name: "Coit", address: "3 rue saint Alphonse, Rennes, France" }
     ];
 
@@ -86,6 +86,16 @@
       }
     }
 
+    async function reverseGeocode(lat, lng) {
+      const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+      const data = await response.json();
+      if (data && data.display_name) {
+        return data.display_name;
+      } else {
+        return "Unknown location";
+      }
+    }
+
     function calculateBarycenter(locations) {
       if (locations.length === 0) return null;
 
@@ -101,7 +111,7 @@
       };
     }
 
-    function addMarkersAndLines(filteredLocations) {
+    async function addMarkersAndLines(filteredLocations) {
       markers.forEach(marker => map.removeLayer(marker));
       markers = [];
       if (lines) {
@@ -126,6 +136,7 @@
 
         const barycenter = calculateBarycenter(filteredLocations);
         if (barycenter) {
+          const barycenterAddress = await reverseGeocode(barycenter.lat, barycenter.lng);
           barycenterMarker = L.marker([barycenter.lat, barycenter.lng], {
             icon: L.divIcon({
               className: 'barycenter-icon',
@@ -133,7 +144,12 @@
               iconSize: [20, 20]
             })
           }).addTo(map)
-            .bindPopup(`<strong>LE Barycentre</strong><br>Lat: ${barycenter.lat.toFixed(4)}, Lng: ${barycenter.lng.toFixed(4)}`)
+            .bindPopup(`
+              <strong>LE Barycentre</strong><br>
+              <strong>Lat:</strong> ${barycenter.lat.toFixed(4)}<br>
+              <strong>Lng:</strong> ${barycenter.lng.toFixed(4)}<br>
+              <strong>Address:</strong> ${barycenterAddress}
+            `)
             .openPopup();
         }
 
@@ -168,9 +184,9 @@
     }
 
     document.querySelectorAll('input[name="filter"]').forEach(input => {
-      input.addEventListener('change', (event) => {
+      input.addEventListener('change', async (event) => {
         const filteredLocations = filterLocations(event.target.value);
-        addMarkersAndLines(filteredLocations);
+        await addMarkersAndLines(filteredLocations);
       });
     });
 
